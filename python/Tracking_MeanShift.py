@@ -80,11 +80,22 @@ while(1):
     ret ,frame = cap.read()
     if ret == True:
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        print(hsv.shape)
-	# Backproject the model histogram roi_hist onto the 
-	# current image hsv, i.e. dst(x,y) = roi_hist(hsv(0,x,y))
+        hue = hsv.copy()
+        hsv2 = np.full(frame.shape[:2], 255)
+        hue[:,:,1] = hsv2
+        hue[:,:,2] = hsv2
+        hue_rgb = cv2.cvtColor(hue, cv2.COLOR_HSV2BGR)
+        cv2.imshow("Hue", hue_rgb)
+
+        sat = hsv[:,:,1]
+        cv2.imshow("Saturation", sat)
+        
+        val = hsv[:,:,2]
+        cv2.imshow("Value", val)
+        # Backproject the model histogram roi_hist onto the 
+        # current image hsv, i.e. dst(x,y) = roi_hist(hsv(0,x,y))
         dst = cv2.calcBackProject([hsv],[0],roi_hist,[0,180],1)
-        print(dst.shape)
+
         # apply meanshift to dst to get the new location
         ret, track_window = cv2.meanShift(dst, track_window, term_crit)
 
