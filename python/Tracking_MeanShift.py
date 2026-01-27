@@ -54,6 +54,17 @@ roi = frame[c:c+w, r:r+h]
 hsv_roi =  cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
 # computation mask of the histogram:
 # Pixels with S<30, V<20 or V>235 are ignored 
+'''	
+	RGB colors are represented by 3D vector in color space (a cube)
+	The vertices of the cube are: black, red, green, blue, cyan, magenta, yellow, white
+	The color in the axis between black and white correspond to gray levels
+	Each color of the RGB cube can be decomposed in a Hue, Saturation and Value (HSV)
+	 - H: color type, i.e. angle of the chromatic component (0=red, 60=green, 120=blue)
+	 - S: purity of the color, distance from the gray axis (0=gray, 255=pure color)
+	 - V: brightness of the color (0=black, 255=white)
+	With the S mask defined below, we ignore pixels that are close to gray levels
+	With the V mask defined below, we ignore pixels that are too dark or too bright
+'''
 mask = cv2.inRange(hsv_roi, np.array((0.,30.,20.)), np.array((180.,255.,235.)))
 # Marginal histogram of the Hue component
 roi_hist = cv2.calcHist([hsv_roi],[0],mask,[180],[0,180])
@@ -69,10 +80,11 @@ while(1):
     ret ,frame = cap.read()
     if ret == True:
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        print(hsv.shape)
 	# Backproject the model histogram roi_hist onto the 
 	# current image hsv, i.e. dst(x,y) = roi_hist(hsv(0,x,y))
         dst = cv2.calcBackProject([hsv],[0],roi_hist,[0,180],1)
-
+        print(dst.shape)
         # apply meanshift to dst to get the new location
         ret, track_window = cv2.meanShift(dst, track_window, term_crit)
 
