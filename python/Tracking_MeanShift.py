@@ -35,6 +35,7 @@ def show_channels_and_weigths(hsv, weights):
     cv2.imshow("Value", val)
 	
     cv2.imshow("Weights", weights)
+    return hue_rgb, sat, val, weights
 
 #cap = cv2.VideoCapture(0)
 cap = cv2.VideoCapture('../Sequences/VOT-Ball.mp4')
@@ -100,7 +101,7 @@ while(1):
         # current image hsv, i.e. dst(x,y) = roi_hist(hsv(0,x,y))
         dst = cv2.calcBackProject([hsv],[0],roi_hist,[0,180],1)
 		
-        show_channels_and_weigths(hsv, dst)
+        hue_rgb, sat, val, weights = show_channels_and_weigths(hsv, dst)
 
         # apply meanshift to dst to get the new location
         ret, track_window = cv2.meanShift(dst, track_window, term_crit)
@@ -113,8 +114,12 @@ while(1):
         k = cv2.waitKey(60) & 0xff
         if k == 27:
             break
-        elif k == ord('s'):
+        elif k == ord('s') or cpt in list(range(150, 161)):
             cv2.imwrite('../Frames/Frame_%04d.png'%cpt,frame_tracked)
+            cv2.imwrite('../Frames/Hue_%04d.png'%cpt,hue_rgb)
+            cv2.imwrite('../Frames/Sat_%04d.png'%cpt,sat)
+            cv2.imwrite('../Frames/Val_%04d.png'%cpt,val)
+            cv2.imwrite('../Frames/Weights_%04d.png'%cpt,weights)
         cpt += 1
     else:
         break
