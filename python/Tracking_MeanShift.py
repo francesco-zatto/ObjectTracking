@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 import os
 
-EXPERIMENT_NAME = 'Ball_HS'
+EXPERIMENT_NAME = 'Antoine-Mug'
 EXPERIMENT_PATH = os.path.join('../Experiments', EXPERIMENT_NAME)
 if not os.path.exists(EXPERIMENT_PATH):
     os.makedirs(EXPERIMENT_PATH)
@@ -44,7 +44,7 @@ def show_channels_and_weigths(hsv, weights):
     cv2.imshow("Weights", weights)
     return hue_rgb, sat, val, weights
 
-def normalize_bgr_frame(frame: cv2.typing.MatLike) -> cv2.typing.MatLike:
+def normalize_bgr_frame(frame):
     """Given a frame, returns a new one where at each pixel we apply (B,G,R) = (B,G,R) / (B + G + R)"""
     f = frame.astype(np.float32)
     b, g, r = cv2.split(f)
@@ -92,7 +92,7 @@ def computeRoiHist(hsv_roi, channels_str="H"):
     return cv2.normalize(roi_hist, roi_hist, 0, 255, cv2.NORM_MINMAX)
 
 #cap = cv2.VideoCapture(0)
-cap = cv2.VideoCapture('../Sequences/VOT-Ball.mp4')
+cap = cv2.VideoCapture('../Sequences/Antoine-Mug.mp4')
 
 # take first frame of the video
 ret,frame = cap.read()

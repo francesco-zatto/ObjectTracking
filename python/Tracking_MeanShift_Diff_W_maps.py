@@ -2,8 +2,8 @@ import numpy as np
 import cv2
 import os
 
-EXPERIMENT_NAME = 'SunShade'
-EXPERIMENT_PATH = os.path.join('../Frames', EXPERIMENT_NAME)
+EXPERIMENT_NAME = 'Antoine-Mug'
+EXPERIMENT_PATH = os.path.join('../Frames', EXPERIMENT_NAME + "WMaps")
 if not os.path.exists(EXPERIMENT_PATH):
     os.makedirs(EXPERIMENT_PATH)
 
@@ -55,7 +55,7 @@ def computeRoiHist(hsv_roi, channels_str="H"):
     return cv2.normalize(hist, None, 0, 255, cv2.NORM_MINMAX)
 
 # --- STARTING VIDEO ---
-cap = cv2.VideoCapture(f'../Sequences/VOT-Basket.mp4')
+cap = cv2.VideoCapture(f'../Sequences/Antoine_Mug.mp4')
 ret, frame = cap.read()
 clone = frame.copy()
 cv2.namedWindow("First image")
@@ -69,15 +69,8 @@ track_window = (r, c, h, w)
 roi = frame[c:c+w, r:r+h]
 hsv_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
 
-# 1. Compute Base Histograms
+# Compute Hue Histograms
 roi_hist_hue = computeRoiHist(hsv_roi, "H")
-
-# 2. Determine BGR weights based on Hue Direction
-avg_h = np.mean(hsv_roi[:,:,0])
-if 100 < avg_h < 130:   bgr_weights = (0.1, 0.45, 0.45) # Blue target -> de-emphasize Blue
-elif 40 < avg_h < 80:   bgr_weights = (0.45, 0.1, 0.45) # Green target -> de-emphasize Green
-elif avg_h < 20 or avg_h > 160: bgr_weights = (0.45, 0.45, 0.1) # Red target -> de-emphasize Red
-else: bgr_weights = (0.33, 0.33, 0.33)
 
 term_crit = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 50, 1)
 cpt = 1
