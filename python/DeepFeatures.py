@@ -5,15 +5,15 @@ import numpy as np
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 LOAD_SQUEEZENET = lambda: torchvision.models.squeezenet1_1(weights=torchvision.models.SqueezeNet1_1_Weights.DEFAULT).eval()
-LOAD_VGG16 = lambda: torchvision.models.vgg16(weights=torchvision.models.VGG16_Weights.DEFAULT).eval()
+LOAD_RESNET = lambda: torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.DEFAULT).eval()
 LOAD_MODELS = {
     'squeezenet': LOAD_SQUEEZENET,
-    'vgg16': LOAD_VGG16
+    'resnet': LOAD_RESNET
 }
 
 def load_model_feature_extractor(name='squeezenet', n_layers=3, print_net=False):
     model = LOAD_MODELS[name]()
-    feature_extractor = model.features
+    feature_extractor = model.features if name=='squeezenet' else torch.nn.Sequential(*list(model.children())[:-2])
     if print_net:
         for i, layer in enumerate(feature_extractor):
             print(f'{i}\t{layer.__class__.__name__}\t{layer}')

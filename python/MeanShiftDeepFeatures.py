@@ -5,14 +5,10 @@ import os
 
 import DeepFeatures
 
-EXPERIMENT_NAME = 'Ball'
-EXPERIMENT_PATH = os.path.join('../Experiments', EXPERIMENT_NAME)
-if not os.path.exists(EXPERIMENT_PATH):
-    os.makedirs(EXPERIMENT_PATH)
-
-MODEL = DeepFeatures.load_model_feature_extractor(name='squeezenet', n_layers=3, print_net=False)
+EXPERIMENT_NAME = 'Sunshade'
 
 roi_defined = False
+r, c, w, h = 0, 0, 0, 0
  
 def define_ROI(event, x, y, flags, param):
     global r,c,w,h,roi_defined
@@ -33,7 +29,7 @@ def define_ROI(event, x, y, flags, param):
         
 def show_channels_and_weigths(hsv, weights):
     hue = hsv.copy()
-    hsv2 = np.full(frame.shape[:2], 255)
+    hsv2 = np.full(hsv.shape[:2], 255)
     hue[:,:,1] = hsv2
     hue[:,:,2] = hsv2
     hue_rgb = cv2.cvtColor(hue, cv2.COLOR_HSV2BGR)
@@ -71,102 +67,109 @@ def updateModel(alpha: float = 0, new_roi_hist=None):
     
     roi_hist = cv2.addWeighted(roi_hist, (1 - alpha), new_roi_hist, alpha, 0)
 
+def main_mean_shift(model, n_layers):
+    global cap, r, c, w, h, roi_defined
+    roi_defined = False
+    EXPERIMENT_PATH = os.path.join('../Frames', EXPERIMENT_NAME + f'_{name_model}_layers{n_layers}')
+    if not os.path.exists(EXPERIMENT_PATH):
+        os.makedirs(EXPERIMENT_PATH)    
+    print(f'\tNumber of layers: {n_layers}')
+
+    # take first frame of the video
+    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+    ret, frame = cap.read()
+    # load the image, clone it, and setup the mouse callback function
+    clone = frame.copy()
+    cv2.namedWindow("First image")
+    cv2.setMouseCallback("First image", define_ROI)
+    
+    # keep looping until the 'q' key is pressed
+    while True:
+        # display the image and wait for a keypress
+        cv2.imshow("First image", frame)
+        key = cv2.waitKey(1) & 0xFF
+        # if the ROI is defined, draw it!
+        if (roi_defined):
+            # draw a green rectangle around the region of interest
+            cv2.rectangle(frame, (r,c), (r+h,c+w), (0, 255, 0), 2)
+        # else reset the image...
+        else:
+            frame = clone.copy()
+        # if the 'q' key is pressed, break from the loop
+        if key == ord("q"):
+            break
+    
+    track_window = (r,c,h,w)
+    roi = frame[c:c+w, r:r+h]
+    # set up the ROI for tracking
+    k = 4
+    bins_per_channel = 8
+    roi_features = DeepFeatures.computeRoiFeatures(roi, model)
+
+    print(f'\tROI\'s features shape: {roi_features.shape}')
+
+    channel_scores = roi_features.mean(dim=(1,2))
+    _, top_k_idx = torch.topk(channel_scores, k)
+
+    roi_quantized, f_min, f_max = DeepFeatures.get_quantized_k_channels(model, roi, top_k_idx, bins=bins_per_channel)
+
+    # Histogram parameters
+    channels_list = list(range(k))
+    hist_sizes = [bins_per_channel] * k
+    ranges = [0, bins_per_channel] * k
+
+    roi_hist = cv2.calcHist([roi_quantized], channels_list, None, hist_sizes, ranges)
+    cv2.normalize(roi_hist, roi_hist, 0, 255, cv2.NORM_MINMAX)
+
+    # Setup the termination criteria: either 10 iterations,
+    # or move by less than 1 pixel
+    term_crit = ( cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1 )
+
+
+    cpt = 1
+    while(1):
+        ret ,frame = cap.read()
+        if ret == True:
+            frame_norm = normalize_bgr_frame(frame)
+            hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+            frame_quantized, _, _ = DeepFeatures.get_quantized_k_channels(model, frame_norm, top_k_idx, bins=bins_per_channel, f_min=f_min, f_max=f_max)
+            weights = cv2.calcBackProject([frame_quantized], channels_list, roi_hist, ranges, 1)
+            weights = cv2.resize(weights, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_LINEAR)
+
+            hue_rgb, sat, val, weights = show_channels_and_weigths(hsv, weights)
+
+            # apply meanshift to dst to get the new location
+            ret, track_window = cv2.meanShift(weights, track_window, term_crit)
+
+            # updateModel(0, computeRoiFeatures(hsv[c:c+w, r:r+h], channels_str=CHANNELS))
+
+            # Draw a blue rectangle on the current image
+            r,c,h,w = track_window
+            frame_tracked = cv2.rectangle(frame, (r,c), (r+h,c+w), (255,0,0) ,2)
+            cv2.imshow('Sequence',frame_tracked)
+
+            k = cv2.waitKey(60) & 0xff
+            if k == 27:
+                break
+            elif k == ord('s'):
+                cv2.imwrite(os.path.join(EXPERIMENT_PATH, 'Frame_%04d.png'%cpt),frame_tracked)
+                cv2.imwrite(os.path.join(EXPERIMENT_PATH, 'Hue_%04d.png'%cpt),hue_rgb)
+                cv2.imwrite(os.path.join(EXPERIMENT_PATH, 'Sat_%04d.png'%cpt),sat)
+                cv2.imwrite(os.path.join(EXPERIMENT_PATH, 'Val_%04d.png'%cpt),val)
+                cv2.imwrite(os.path.join(EXPERIMENT_PATH, 'Weights_%04d.png'%cpt),weights)
+            cpt += 1
+        else:
+            break
+
+#cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture('../Sequences/VOT-Sunshade.mp4')
+
 for name_model in DeepFeatures.LOAD_MODELS.keys():
     print(f'Currently loaded model: {name_model}')
     for n_layers in [1, 3, 5]:
-        roi_defined = False
-        EXPERIMENT_PATH = os.path.join('../Experiments', EXPERIMENT_NAME + f'_{name_model}_layers{n_layers}')
-        if not os.path.exists(EXPERIMENT_PATH):
-            os.makedirs(EXPERIMENT_PATH)    
-        print(f'\tNumber of layers: {n_layers}')
-        #cap = cv2.VideoCapture(0)
-        cap = cv2.VideoCapture('../Sequences/Antoine_Mug.mp4')
-
-        # take first frame of the video
-        ret, frame = cap.read()
-        # load the image, clone it, and setup the mouse callback function
-        clone = frame.copy()
-        cv2.namedWindow("First image")
-        cv2.setMouseCallback("First image", define_ROI)
-        
-        # keep looping until the 'q' key is pressed
-        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-        while True:
-            # display the image and wait for a keypress
-            cv2.imshow("First image", frame)
-            key = cv2.waitKey(1) & 0xFF
-            # if the ROI is defined, draw it!
-            if (roi_defined):
-                # draw a green rectangle around the region of interest
-                cv2.rectangle(frame, (r,c), (r+h,c+w), (0, 255, 0), 2)
-            # else reset the image...
-            else:
-                frame = clone.copy()
-            # if the 'q' key is pressed, break from the loop
-            if key == ord("q"):
-                break
-        
-        track_window = (r,c,h,w)
-        roi = frame[c:c+w, r:r+h]
-        # set up the ROI for tracking
-        k = 4
-        bins_per_channel = 8
-        MODEL = DeepFeatures.load_model_feature_extractor(name=name_model, n_layers=n_layers, print_net=False)
-        roi_features = DeepFeatures.computeRoiFeatures(roi, MODEL)
-
-        channel_scores = roi_features.mean(dim=(1,2))
-        _, top_k_idx = torch.topk(channel_scores, k)
-
-        roi_quantized, f_min, f_max = DeepFeatures.get_quantized_k_channels(MODEL, roi, top_k_idx, bins=bins_per_channel)
-
-        # Histogram parameters
-        channels_list = list(range(k))
-        hist_sizes = [bins_per_channel] * k
-        ranges = [0, bins_per_channel] * k
-
-        roi_hist = cv2.calcHist([roi_quantized], channels_list, None, hist_sizes, ranges)
-        cv2.normalize(roi_hist, roi_hist, 0, 255, cv2.NORM_MINMAX)
-
-        # Setup the termination criteria: either 10 iterations,
-        # or move by less than 1 pixel
-        term_crit = ( cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1 )
-
-
-        cpt = 1
-        while(1):
-            ret ,frame = cap.read()
-            frame_norm = normalize_bgr_frame(frame)
-            if ret == True:
-                hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-
-                frame_quantized, _, _ = DeepFeatures.get_quantized_k_channels(MODEL, frame_norm, top_k_idx, bins=bins_per_channel, f_min=f_min, f_max=f_max)
-                weights = cv2.calcBackProject([frame_quantized], channels_list, roi_hist, ranges, 1)
-                weights = cv2.resize(weights, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_LINEAR)
-
-                hue_rgb, sat, val, weights = show_channels_and_weigths(hsv, weights)
-
-                # apply meanshift to dst to get the new location
-                ret, track_window = cv2.meanShift(weights, track_window, term_crit)
-
-                # updateModel(0, computeRoiFeatures(hsv[c:c+w, r:r+h], channels_str=CHANNELS))
-
-                # Draw a blue rectangle on the current image
-                r,c,h,w = track_window
-                frame_tracked = cv2.rectangle(frame, (r,c), (r+h,c+w), (255,0,0) ,2)
-                cv2.imshow('Sequence',frame_tracked)
-
-                k = cv2.waitKey(60) & 0xff
-                if k == 27:
-                    break
-                elif k == ord('s'):
-                    cv2.imwrite(os.path.join(EXPERIMENT_PATH, 'Frame_%04d.png'%cpt),frame_tracked)
-                    cv2.imwrite(os.path.join(EXPERIMENT_PATH, 'Hue_%04d.png'%cpt),hue_rgb)
-                    cv2.imwrite(os.path.join(EXPERIMENT_PATH, 'Sat_%04d.png'%cpt),sat)
-                    cv2.imwrite(os.path.join(EXPERIMENT_PATH, 'Val_%04d.png'%cpt),val)
-                    cv2.imwrite(os.path.join(EXPERIMENT_PATH, 'Weights_%04d.png'%cpt),weights)
-                cpt += 1
-            else:
-                break
+        model = DeepFeatures.load_model_feature_extractor(name=name_model, n_layers=n_layers, print_net=False)
+        main_mean_shift(model, n_layers)
 
 cv2.destroyAllWindows()
 cap.release()
