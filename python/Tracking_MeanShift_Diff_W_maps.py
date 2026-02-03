@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 import os
 
-EXPERIMENT_NAME = 'Antoine-Mug'
+EXPERIMENT_NAME = 'Ball'
 EXPERIMENT_PATH = os.path.join('../Frames', EXPERIMENT_NAME + "WMaps")
 if not os.path.exists(EXPERIMENT_PATH):
     os.makedirs(EXPERIMENT_PATH)
@@ -55,7 +55,7 @@ def computeRoiHist(hsv_roi, channels_str="H"):
     return cv2.normalize(hist, None, 0, 255, cv2.NORM_MINMAX)
 
 # --- STARTING VIDEO ---
-cap = cv2.VideoCapture(f'../Sequences/Antoine_Mug.mp4')
+cap = cv2.VideoCapture(f'../Sequences/VOT-Ball.mp4')
 ret, frame = cap.read()
 clone = frame.copy()
 cv2.namedWindow("First image")

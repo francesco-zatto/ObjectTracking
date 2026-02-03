@@ -5,7 +5,7 @@ import os
 
 import DeepFeatures
 
-EXPERIMENT_NAME = 'Sunshade'
+EXPERIMENT_NAME = 'Car'
 
 roi_defined = False
 r, c, w, h = 0, 0, 0, 0
@@ -163,7 +163,7 @@ def main_mean_shift(model, n_layers):
             break
 
 #cap = cv2.VideoCapture(0)
-cap = cv2.VideoCapture('../Sequences/VOT-Sunshade.mp4')
+cap = cv2.VideoCapture('../Sequences/VOT-Car.mp4')
 
 for name_model in DeepFeatures.LOAD_MODELS.keys():
     print(f'Currently loaded model: {name_model}')
