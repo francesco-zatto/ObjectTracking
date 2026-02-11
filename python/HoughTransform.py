@@ -33,7 +33,7 @@ def compute_gradient_maps(image):
     Ix = cv2.Sobel(img_float, cv2.CV_64F, 1, 0, ksize=3)
     Iy = cv2.Sobel(img_float, cv2.CV_64F, 0, 1, ksize=3)
     
-    if image.ndim == 3:
+    if image.ndim == 3: # if the video has three color channels instead of gray valued
         mag_all = np.hypot(Ix, Iy)
         
         k_indices = np.argmax(mag_all, axis=2)
@@ -45,7 +45,7 @@ def compute_gradient_maps(image):
     gradient_orientation = np.arctan2(-Iy, Ix)
 
     h, w = image.shape[:2]
-    masked_gradient_orientation = np.zeros((h, w, 3), dtype=np.uint8) # 3 channels
+    masked_gradient_orientation = np.zeros((h, w, 3), dtype=np.uint8) # 3 channels to show the masked orientation
 
     norm_orientation = ((gradient_orientation + np.pi) / (2 * np.pi) * 255).astype(np.uint8)
 
@@ -83,6 +83,34 @@ def get_R_table(roi_masked_orientation):
         
     return R_table
 
+def update_R_table(current_R_table, new_roi_m_ori, alpha=0.1, max_vectors=500):
+    new_frame_table = get_R_table(new_roi_m_ori)
+    
+    updated_R_table = []
+    
+    for b in range(N_BINS):
+        old_vectors = current_R_table[b]
+        new_vectors = new_frame_table[b]
+        
+        if len(new_vectors) == 0:
+            updated_R_table.append(old_vectors)
+            continue
+            
+        n_new = int(max_vectors * alpha)
+        n_old = max_vectors - n_new
+        
+        # to select the displacement vectors we decided to sample randomly
+        if len(new_vectors) > n_new:
+            idx = np.random.choice(len(new_vectors), n_new, replace=False)
+            new_vectors = new_vectors[idx]
+        if len(old_vectors) > n_old:
+            idx = np.random.choice(len(old_vectors), n_old, replace=False)
+            old_vectors = old_vectors[idx]
+            
+        combined = np.vstack((old_vectors, new_vectors))
+        updated_R_table.append(combined)
+        
+    return updated_R_table
 
 def houghTransform(masked_orientation, R_table, strategy='argmax'):
     rows, cols, _ = masked_orientation.shape
@@ -127,7 +155,7 @@ def houghTransform(masked_orientation, R_table, strategy='argmax'):
             
     return res, counter_image
 
-cap = cv2.VideoCapture('../Sequences/Antoine_mug.mp4')
+cap = cv2.VideoCapture('../Sequences/Antoine_Mug.mp4')
 
 # take first frame of the video
 ret,frame = cap.read()
@@ -162,17 +190,27 @@ cpt = 1
 mag, ori, m_ori = compute_gradient_maps(frame)
 R_table = get_R_table(m_ori[c:c+w, r:r+h])
 
+MODEL_LEARNING = False # to update the model as the algorithm is running
+STRATEGY = 'argmax' # 'argmax' or 'averaging'
+
 while(1):
     ret ,frame = cap.read()
 
     if ret == False:
         break
 
-    # cv2.imshow('Frame', frame)
     mag, ori, m_ori = compute_gradient_maps(frame)
 
-    (row_center, col_center), response = houghTransform(m_ori, R_table, strategy='average')
+    (row_center, col_center), response = houghTransform(m_ori, R_table, strategy='argmax')
     
+    y1, y2 = max(0, row_center - w//2), min(frame.shape[0], row_center + w//2)
+    x1, x2 = max(0, col_center - h//2), min(frame.shape[1], col_center + h//2)
+    
+    new_roi_m_ori = m_ori[y1:y2, x1:x2]
+    
+    if MODEL_LEARNING:
+        R_table = update_R_table(R_table, new_roi_m_ori, alpha=0.1)
+
     # top-left for the rectangle (x, y)
     draw_x = col_center - (h // 2)
     draw_y = row_center - (w // 2)
@@ -180,16 +218,16 @@ while(1):
     tracking = frame.copy()
     cv2.rectangle(tracking, (draw_x, draw_y), (draw_x + h, draw_y + w), (255, 0, 0), 2)
     cv2.imshow('Tracking', tracking)
-    
+
     # gradient magnitude and orientation
 
     # Map radians [-pi, pi] to [0, 255] for display
     ori_view = ((ori + np.pi) * (255 / (2 * np.pi))).astype(np.uint8)
     masked_ori_view = ((m_ori + np.pi) * (255 / (2 * np.pi))).astype(np.uint8)
     mag_view = cv2.normalize(mag, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-    # cv2.imshow('Orientation', ori_view)
-    # cv2.imshow('Magnitude',mag_view)
-    # cv2.imshow('Masked orientation',m_ori)
+    cv2.imshow('Orientation', ori_view)
+    cv2.imshow('Magnitude',mag_view)
+    cv2.imshow('Masked orientation',m_ori)
 
     # response of the hough transform
 
