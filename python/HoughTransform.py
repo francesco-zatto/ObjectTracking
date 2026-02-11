@@ -201,7 +201,7 @@ while(1):
 
     mag, ori, m_ori = compute_gradient_maps(frame)
 
-    (row_center, col_center), response = houghTransform(m_ori, R_table, strategy='argmax')
+    (row_center, col_center), response = houghTransform(m_ori, R_table, strategy=STRATEGY)
     
     y1, y2 = max(0, row_center - w//2), min(frame.shape[0], row_center + w//2)
     x1, x2 = max(0, col_center - h//2), min(frame.shape[1], col_center + h//2)
@@ -211,12 +211,8 @@ while(1):
     if MODEL_LEARNING:
         R_table = update_R_table(R_table, new_roi_m_ori, alpha=0.1)
 
-    # top-left for the rectangle (x, y)
-    draw_x = col_center - (h // 2)
-    draw_y = row_center - (w // 2)
-
     tracking = frame.copy()
-    cv2.rectangle(tracking, (draw_x, draw_y), (draw_x + h, draw_y + w), (255, 0, 0), 2)
+    cv2.rectangle(tracking, (x1, y1), (x2, y2), (255, 0, 0), 2)
     cv2.imshow('Tracking', tracking)
 
     # gradient magnitude and orientation
