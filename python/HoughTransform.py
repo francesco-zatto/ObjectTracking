@@ -84,7 +84,7 @@ def get_R_table(roi_masked_orientation):
     return R_table
 
 
-def houghTransform(masked_orientation, R_table):
+def houghTransform(masked_orientation, R_table, strategy='argmax'):
     rows, cols, _ = masked_orientation.shape
 
     counter_image = np.zeros((rows,cols), dtype=int)
@@ -110,7 +110,21 @@ def houghTransform(masked_orientation, R_table):
                 
                 np.add.at(counter_image, (target_y[valid], target_x[valid]), 1)
 
-    res = np.unravel_index(np.argmax(counter_image), counter_image.shape) # get the peak
+    if strategy == 'argmax':
+        res = np.unravel_index(np.argmax(counter_image), counter_image.shape)
+    elif strategy == 'average':
+        max_val = np.max(counter_image)
+        thresh_map = np.where(counter_image > 0.2 * max_val, counter_image, 0)
+        
+        total_votes = np.sum(thresh_map)
+
+        yy, xx = np.indices((rows, cols)) # coordinates for the weighted sum
+        weighted_y = np.sum(yy * thresh_map) / total_votes
+        weighted_x = np.sum(xx * thresh_map) / total_votes
+        res = (int(weighted_y), int(weighted_x))
+    else:
+        raise ValueError("Invalid strategy")
+            
     return res, counter_image
 
 cap = cv2.VideoCapture('../Sequences/Antoine_mug.mp4')
@@ -157,7 +171,7 @@ while(1):
     # cv2.imshow('Frame', frame)
     mag, ori, m_ori = compute_gradient_maps(frame)
 
-    (row_center, col_center), response = houghTransform(m_ori, R_table)
+    (row_center, col_center), response = houghTransform(m_ori, R_table, strategy='average')
     
     # top-left for the rectangle (x, y)
     draw_x = col_center - (h // 2)
